@@ -1,419 +1,449 @@
+'use strict'; // eslint-disable-line strict
 // server.js
 // where your node app starts
 
 // init project
-require('dotenv').load();
-var express = require('express');
-var app = express();
+const express = require('express');
+const bodyParser = require('body-parser');
+const app = express();
+const Helper = require('./helpers.js');
+const LoadConfig = require('./config.js');
+const config = new LoadConfig();
+const ResponseException = require('./exceptions.js').ResponseException;
 
-var Fuse = require('fuse.js')
-var Kodi = require('./kodi-connection/node.js');
-var kodi = new Kodi(process.env.KODI_IP, process.env.KODI_PORT, process.env.KODI_USER, process.env.KODI_PASSWORD);
-
-// Set option for fuzzy search
-var fuzzySearchOptions = {
-  caseSensitive: false, // Don't care about case whenever we're searching titles by speech
-  includeScore: false, // Don't need the score, the first item has the highest probability
-  shouldSort: true, // Should be true, since we want result[0] to be the item with the highest probability
-  threshold: 0.4, // 0 = perfect match, 1 = match all..
-  location: 0,
-  distance: 100,
-  maxPatternLength: 64,
-  keys: ['label']
-}
-
+app.use(bodyParser.json()); // for parsing application/json
 app.use(express.static('public'));
 
-var validateRequest = function(req, res, processRequest){
-  var jsonString = '';
-  var requestToken = '';
-  var jsonBody;
-
-  if (req == null || req.query == req) {
-    console.log("403 - Unauthorized request");
-    res.sendStatus(403);
-    return;
-  }
-  
-  req.on('data', function (data) {
-      jsonString += data;
-  });
-  req.on('end', function () {
-    if (jsonString != '') {
-      jsonBody = JSON.parse(jsonString);
-      if (jsonBody != null) {
-        requestToken = jsonBody['token'];
-        console.log("Request token = " + requestToken);
-        if (requestToken == process.env.AUTH_TOKEN) {
-          console.log("Authentication succeeded");
-          processRequest(req, res);
-          return;
-        }
-      }
+const handleResponse = (response, error) => {
+    console.log(`Error trying to validate the request. Error: ${error.message}`);
+    if (error.status) {
+        response.status(error.status).send(error.message);
+    } else {
+        response.status(400).send(error);
     }
-    console.log("401 - Authentication failed");
-    res.sendStatus(401);
-  });
+};
+
+const validateRequest = function(request) {
+    return new Promise((resolve, reject) => {
+        let requestToken = '';
+
+        if (request === null || request.query === request) {
+            console.log('403 - Unauthorized request');
+            reject(new ResponseException('403 - Unauthorized request', 403));
+            return;
+        }
+
+        if (request.body) {
+            requestToken = request.body.token;
+            if (!requestToken) {
+                reject(new ResponseException('You should configure an access token, to secure your app.', 401));
+                return;
+            }
+
+            console.log(`Request token = ${requestToken}`);
+            if (requestToken === config.globalConf.authToken) {
+                console.log('Authentication succeeded');
+
+                config.routeKodiInstance(request);
+                resolve('Authentication succeeded');
+                return;
+            }
+        } else {
+            console.log('401 - Missing request body');
+            reject(new ResponseException('401 - Missing request body', 401));
+            return;
+        }
+
+        console.log('401 - Authentication failed');
+        reject(new ResponseException('401 - Authentication failed', 401));
+    });
 };
 
 // Pause or Resume video player
-app.get("/playpause", function (request, response) {
-  validateRequest(request, response, kodiPlayPause)
+app.all('/playpause', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayPause(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
-
-var kodiPlayPause = function(request, response) {
-  console.log("Play/Pause request received");
-  kodi.Player.PlayPause({playerid:1});
-  response.sendStatus(200);
-};
 
 // Stop video player
-app.get("/stop", function (request, response) {
-  validateRequest(request, response, kodiStop)
+app.all('/stop', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiStop(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
-
-var kodiStop = function(request, response) {
-  console.log("Stop request received");
-  kodi.Player.Stop({playerid:1});
-  response.sendStatus(200);
-};
 
 // mute or unmute kodi
-app.get("/mute", function (request, response) {
-  validateRequest(request, response, kodiMuteToggle)
+app.all('/mute', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiMuteToggle(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
-
-var kodiMuteToggle = function(request, response) {
-  console.log("mute/unmute request received");
-  kodi.Application.SetMute({"mute":"toggle"});
-  response.sendStatus(200);
-};
 
 // set kodi volume
-app.get("/volume", function (request, response) {
-  validateRequest(request, response, kodiSetVolume)
+app.all('/volume', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSetVolume(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
-
-var kodiSetVolume = function(request, response) {
-  var setVolume = request.query.q.trim();
-  console.log("set volume to \"" + setVolume + "\" percent request received");
-  kodi.Application.SetVolume({"volume":parseInt(setVolume)});
-  response.sendStatus(200);
-};
-
 
 // Turn on TV and Switch to Kodi's HDMI input
-app.get("/activatetv", function (request, response) {
-  validateRequest(request, response, kodiActivateTv)
+app.all('/activatetv', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiActivateTv(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
-
-var kodiActivateTv = function(request, response) {
-  console.log("Activate TV request received");
-
-  var params = {
-          addonid: "script.json-cec",
-          params: {
-            command: "activate"
-          }
-        };
-  kodi.Addons.ExecuteAddon(params);
-};
-
-var tryActivateTv = function() {
-  if (process.env.ACTIVATE_TV != null && process.env.ACTIVATE_TV == "true") {
-    console.log("Activating TV first..");
-    kodiActivateTv(null, null);
-  }
-};
-
 
 // Parse request to watch a movie
-// Request format:   http://[THIS_SERVER_IP_ADDRESS]/playmovie?q=[MOVIE_NAME]
-app.get("/playmovie", function (request, response) {
-  validateRequest(request, response, kodiPlayMovie)
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playmovie?q=[MOVIE_NAME]
+app.all('/playmovie', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayMovie(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
 
-var kodiPlayMovie = function(request, response) {
-  tryActivateTv();
-  
-  var movieTitle = request.query.q.trim();
-  console.log("Movie request received to play \"" + movieTitle + "\"");
-    
-  kodi.VideoLibrary.GetMovies()
-  .then(function(movies) {
-    if(!(movies && movies.result && movies.result.movies && movies.result.movies.length > 0)) {
-      throw new Error('no results');
-    }
+// Parse request to open a specific tv show
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/opentvshow?q=[TV_SHOW_NAME]
+app.all('/opentvshow', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiOpenTvshow(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
-    // Create the fuzzy search object
-    var fuse = new Fuse(movies.result.movies, fuzzySearchOptions)
-    var searchResult = fuse.search(movieTitle)
-
-    // If there's a result
-    if (searchResult.length > 0) {
-      var movieFound = searchResult[0];
-      console.log("Found movie \"" + movieFound.label + "\" (" + movieFound.movieid + ")");
-      return kodi.Player.Open({item: { movieid: movieFound.movieid }});
-    } else {
-      throw new Error("Couldn\'t find movie \"" + movieTitle + "\"");
-    }
-  })
-  .catch(function(e) {
-    console.log(e);
-  });
-  response.sendStatus(200);
-};
-
+// Start a new library scan
+app.all('/scanlibrary', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiScanLibrary(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
 // Parse request to watch your next unwatched episode for a given tv show
-// Request format:   http://[THIS_SERVER_IP_ADDRESS]/playtvshow?q=[TV_SHOW_NAME]
-app.get("/playtvshow", function (request, response) {
-  validateRequest(request, response, kodiPlayTvshow)
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playtvshow?q=[TV_SHOW_NAME]
+app.all('/playtvshow', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayTvshow(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
-
-var kodiPlayTvshow = function(request, response) {
-  tryActivateTv();
-  var param = {
-    tvshowTitle: request.query.q.trim().toLowerCase()
-  };
-  
-  console.log("TV Show request received to play \"" + param["tvshowTitle"] + "\"");
-
-  kodiFindTvshow (request, response, kodiPlayNextUnwatchedEpisode, param);
-};
-
 
 // Parse request to watch a specific episode for a given tv show
-// Request format:   http://[THIS_SERVER_IP_ADDRESS]/playepisode?q[TV_SHOW_NAME]season[SEASON_NUMBER]episode&e[EPISODE_NUMBER]
-// For example, if IP was 1.1.1.1 a request to watch season 2 episode 3 in tv show named 'bla' looks like:  
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playepisode?q=[TV_SHOW_NAME]season=[SEASON_NUMBER]episode&e=[EPISODE_NUMBER]
+// For example, if IP was 1.1.1.1 a request to watch season 2 episode 3 in tv show named 'bla' looks like:
 // http://1.1.1.1/playepisode?q=bla+season+2+episode&e=3
-app.get("/playepisode", function (request, response) {
-  validateRequest(request, response, kodiPlayEpisodeHandler)
+app.all('/playepisode', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayEpisodeHandler(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
 
-var kodiPlayEpisodeHandler = function(request, response) {
-  tryActivateTv();
-  var requestPartOne = request.query.q.split("season");
-  var param = {
-    tvshowTitle: requestPartOne[0].trim().toLowerCase(),
-    seasonNum: requestPartOne[1].trim().toLowerCase(),
-    episodeNum: request.query.e
-  };
-  
-  console.log("Specific Episode request received to play \"" + param["tvshowTitle"] + "\" Season " + param["seasonNum"] + " Episode " + param["episodeNum"]);
-  
-  kodiFindTvshow (request, response, kodiPlaySpecificEpisode, param);
-};
+// Parse request to Shutdown the kodi system
+// Request format:  http://[THIS_SERVER_IP_ADDRESS]/shutdown
+app.all('/shutdown', function(request, response) {
+    validateRequest(request, response).then(() => {
+        request.kodi.System.Shutdown();  // eslint-disable-line new-cap
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
-
-var kodiFindTvshow = function(req, res, nextAction, param) {
-  kodi.VideoLibrary.GetTVShows()
-  .then(
-    function(shows) {
-      if(!(shows && shows.result && shows.result.tvshows && shows.result.tvshows.length > 0)) {
-        throw new Error('no results');
-      }
-      // Create the fuzzy search object
-      var fuse = new Fuse(shows.result.tvshows, fuzzySearchOptions)
-      var searchResult = fuse.search(param["tvshowTitle"])
-
-      // If there's a result
-      if (searchResult.length > 0 && searchResult[0].tvshowid != null) {
-        var tvshowFound = searchResult[0];
-        console.log("Found tv show \"" + tvshowFound.label + "\" (" + tvshowFound.tvshowid + ")");
-        param["tvshowid"] = tvshowFound.tvshowid;
-        nextAction (req, res, param);
-      } else {
-        throw new Error("Couldn\'t find tv show \"" + param["tvshowTitle"] + "\"");
-      }
-    }
-  )
-  .catch(function(e) {
-    console.log(e);
-  })
-};
-
-
-var kodiPlayNextUnwatchedEpisode = function(req, res, RequestParams) {
-  console.log("Searching for next episode of Show ID " + RequestParams["tvshowid"]  + "...");          
-
-  // Build filter to search unwatched episodes
-  var param = {
-          tvshowid: RequestParams["tvshowid"],
-          properties: ['playcount', 'showtitle', 'season', 'episode'],
-          // Sort the result so we can grab the first unwatched episode
-          sort: {
-            order: 'ascending',
-            method: 'episode',
-            ignorearticle: true
-          }
-        }
-  kodi.VideoLibrary.GetEpisodes(param)
-  .then(function (episodeResult) {
-    if(!(episodeResult && episodeResult.result && episodeResult.result.episodes && episodeResult.result.episodes.length > 0)) {
-      throw new Error('no results');
-    }
-    var episodes = episodeResult.result.episodes;
-    // Check if there are episodes for this TV show
-    if (episodes) {
-      console.log("found episodes..");
-      // Check whether we have seen this episode already
-      var firstUnplayedEpisode = episodes.filter(function (item) {
-        return item.playcount === 0
-      })
-      if (firstUnplayedEpisode.length > 0) {
-        var episdoeToPlay = firstUnplayedEpisode[0]; // Resolve the first unplayed episode
-        console.log("Playing season " + episdoeToPlay.season + " episode " + episdoeToPlay.episode + " (ID: " + episdoeToPlay.episodeid + ")");
-        var param = {
-            item: {
-              episodeid: episdoeToPlay.episodeid
-            }
-          }
-        return kodi.Player.Open(param);
-      }
-    }
-  })
-  .catch(function(e) {
-    console.log(e);
-  });
-  res.sendStatus(200);
-};
-
-
-var kodiPlaySpecificEpisode = function(req, res, RequestParams) {
-  console.log("Searching Season " + RequestParams["seasonNum"] + ", episode " + RequestParams["episodeNum"] + " of Show ID " + RequestParams["tvshowid"] + "...");          
-
-  // Build filter to search for specific season number
-  var param = {
-          tvshowid: RequestParams["tvshowid"],
-          //episode: requestedEpisodeNum,
-          season: parseInt(RequestParams["seasonNum"]),
-          properties: ['playcount', 'showtitle', 'season', 'episode']
-        }
-  kodi.VideoLibrary.GetEpisodes(param)
-  .then(function (episodeResult) {
-    if(!(episodeResult && episodeResult.result && episodeResult.result.episodes && episodeResult.result.episodes.length > 0)) {
-      throw new Error('no results');
-    }
-    var episodes = episodeResult.result.episodes;
-    // Check if there are episodes for this TV show
-    if (episodes) {
-      console.log("found episodes..");
-      // Check for the episode number requested
-      var matchedEpisodes = episodes.filter(function (item) {
-        return item.episode === parseInt(RequestParams["episodeNum"])
-      })
-      if (matchedEpisodes.length > 0) {
-        var episdoeToPlay = matchedEpisodes[0];
-        console.log("Playing season " + episdoeToPlay.season + " episode " + episdoeToPlay.episode + " (ID: " + episdoeToPlay.episodeid + ")");
-        var param = {
-            item: {
-              episodeid: episdoeToPlay.episodeid
-            }
-          }
-        return kodi.Player.Open(param);
-      }
-    }
-  })
-  .catch(function(e) {
-    console.log(e);
-  });
-  res.sendStatus(200);
-};
-
+// Parse request to watch a random episode for a given tv show
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playepisode?q[TV_SHOW_NAME]season[SEASON_NUMBER]episode&e[EPISODE_NUMBER]
+// For example, if IP was 1.1.1.1 a request to watch season 2 episode 3 in tv show named 'bla' looks like:
+// http://1.1.1.1/playepisode?q=bla+season+2+episode&e=3
+app.all('/shuffleepisode', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiShuffleEpisodeHandler(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
 // Parse request to watch a PVR channel by name
-// Request format:   http://[THIS_SERVER_IP_ADDRESS]/playpvrchannelbyname?q=[CHANNEL_NAME]
-app.get("/playpvrchannelbyname", function (request, response) {
-  validateRequest(request, response, kodiPlayChannelByName)
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playpvrchannelbyname?q=[CHANNEL_NAME]
+app.all('/playpvrchannelbyname', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayChannelByName(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+
+// Parse request to search for a youtube video. The video will be played using the youtube addon.
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playyoutube?q=[TV_SHOW_NAME]
+// For example, if IP was 1.1.1.1 a request to watch season 2 episode 3 in tv show named 'bla' looks like:
+// http://1.1.1.1/playyoutube?q=bla
+app.all('/playyoutube', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayYoutube(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
 
 // Parse request to watch a PVR channel by number
-// Request format:   http://[THIS_SERVER_IP_ADDRESS]/playpvrchannelbynumber?q=[CHANNEL_NUMBER]
-app.get("/playpvrchannelbynumber", function (request, response) {
-  validateRequest(request, response, kodiPlayChannelByNumber)
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playpvrchannelbynumber?q=[CHANNEL_NUMBER]
+app.all('/playpvrchannelbynumber', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayChannelByNumber(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
 });
 
-var kodiPlayChannelByName = function(request, response) {
-  tryActivateTv();
-  kodiPlayChannel(request, response, fuzzySearchOptions);
-}
-  
-var kodiPlayChannelByNumber = function(request, response) {
-  tryActivateTv();
-  var pvrFuzzySearchOptions = JSON.parse(JSON.stringify(fuzzySearchOptions));
-  pvrFuzzySearchOptions.keys[0] = "channelnumber"
-  kodiPlayChannel(request, response, pvrFuzzySearchOptions);
-}
-  
-var kodiPlayChannel = function(request, response, searchOptions) {
-  
-  var reqChannel = request.query.q.trim();
-  console.log("PVR channel request received to play \"" + reqChannel + "\"");
-    
-  // Build filter to search TV channel groups
-  var param = {
-    channeltype : "tv"
-  }
-  
-  kodi.PVR.GetChannelGroups(param)
-  .then(function(channelGroups) {
-    if(!(channelGroups && channelGroups.result && channelGroups.result.channelgroups && channelGroups.result.channelgroups.length > 0)) {
-      throw new Error('no channels group were found. Perhaps PVR is not setup?');
-    }
+// Parse request to test the end2end kodi connectivity.
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/koditestconnection
+app.all('/koditestconnection', function(request, response) {
+    console.log('Request incomming for testing the end2end connectivity to kodi.');
+    validateRequest(request, response)
+    .then(() => {
+        Helper.kodiTestConnection(request, response)
+        .then(() => {
+            response.sendStatus(200);
+            console.log('Test seemed to successful, you should have seen a notification on your kodi GUI.');
+        })
+        .catch(error => { // eslint-disable-line arrow-parens
+            let status = 400;
+            
+            if (error.status) {
+                status = error.status;
+            }
+            response.status(status).send(error.message);
+        });
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
-    // For each tv PVR channel group, search for all channels
-    var chGroups = channelGroups.result.channelgroups;
-    
-    tryPlayingChannelInGroup(searchOptions, reqChannel, chGroups, 0);
-  })
-  .catch(function(e) { 
-        console.log(e);
-  })
-};
+// *********************************Navigation
 
-    
-var tryPlayingChannelInGroup = function(searchOptions, reqChannel, chGroups, currGroupI) {
-    if (currGroupI < chGroups.length) {
-      
-      // Build filter to search for all channel under the channel group
-      var param = {
-        channelgroupid : chGroups[currGroupI].channelgroupid
-      }
-      
-      kodi.PVR.GetChannels(param)
-      .then(function(channels) {
-        if(!(channels && channels.result && channels.result.channels && channels.result.channels.length > 0)){ 
-          throw new Error('no channels were found');
-        }
-        
-        var rChannels = channels.result.channels;
-        // Create the fuzzy search object
-        var fuse = new Fuse(rChannels, searchOptions)
-        var searchResult = fuse.search(reqChannel)
-        
-        // If there's a result
-        if (searchResult.length > 0) {
-          var channelFound = searchResult[0];
-          console.log("Found PVR channel \"" + channelFound.label + "\" - " + channelFound.channelnumber + " (" + channelFound.channelid + ")");
-          return kodi.Player.Open({item: { channelid: channelFound.channelid }}); 
-        } else {
-          
-          tryPlayingChannelInGroup(searchOptions, reqChannel, chGroups, currGroupI+1);
-        }
-      })
-      .catch(function(e) { 
-        console.log(e);
-      })
-    }
-  };
+// Navigation Down
+app.all('/navdown', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavDown(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
+// Navigation Up
+app.all('/navup', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavUp(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
 
-app.get("/", function (request, response) {
-  response.sendFile(__dirname + '/views/index.html');
+// Navigation Right
+app.all('/navright', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavRight(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Navigation Left
+app.all('/navleft', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavLeft(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Navigation Back
+app.all('/navback', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavBack(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Navigation Select
+app.all('/navselect', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavSelect(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Navigation ContectMenu
+app.all('/navcontextmenu', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavContextMenu(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Show Info
+app.all('/displayinfo', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiDisplayInfo(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Navigation Home
+app.all('/navhome', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiNavHome(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// **************************End of navigation controls
+
+// Set subtitles
+app.all('/setsubtitles', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSetSubs(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Set subtitles direct track selection
+app.all('/setsubtitlesdirect', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSetSubsDirect(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Set audio stream
+app.all('/setaudio', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSetAudio(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Set audio stream direct track selection
+app.all('/setaudiodirect', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSetAudioDirect(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Go to x minutes
+app.all('/seektominutes', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSeektominutes(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+/*
+//Bug when seeking forward less than 60 seconds in kodi json https://forum.kodi.tv/showthread.php?tid=237408 so I'm disabling this until a work around is working.
+//Seek forward x seconds
+app.all('/seekforwardseconds', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSeekForwardSeconds(request, response);
+    });
+    response.sendStatus(200);
+});
+
+//Seek backward x seconds
+app.all('/seekbackwardseconds', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSeekBackwardSeconds(request, response);
+    });
+    response.sendStatus(200);
+});
+*/
+
+// Seek forward x minutes
+app.all('/seekforwardminutes', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSeekForwardMinutes(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Seek backward x minutes
+app.all('/seekbackwardminutes', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiSeekBackwardMinutes(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Parse request to play a song
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playsong?q=[SONG_NAME]
+app.all('/playsong', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlaySong(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Parse request to play an album
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playalbum?q=[ALBUM_NAME]
+app.all('/playalbum', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayAlbum(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Parse request to play an artist
+// Request format:     http://[THIS_SERVER_IP_ADDRESS]/playartist?q=[artist_NAME]
+app.all('/playartist', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.kodiPlayArtist(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+// Playlist Control
+app.all('/playercontrol', function(request, response) {
+    validateRequest(request, response).then(() => {
+        Helper.playercontrol(request, response);
+        response.sendStatus(200);
+    })
+    .catch(error => handleResponse(response, error)); // eslint-disable-line arrow-parens
+});
+
+app.get('/', (request, response) => {
+    response.sendFile(`${__dirname}/views/index.html`);
 });
 
 // listen for requests :)
-var listener = app.listen(process.env.PORT, function () {
-  console.log('Your app is listening on port ' + listener.address().port);
+const listener = app.listen(config.globalConf.listenerPort, () => {
+    console.log(`Your app is listening on port ${listener.address().port}`);
 });

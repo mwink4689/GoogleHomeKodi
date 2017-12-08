@@ -1,5 +1,11 @@
 Control Kodi through your Google Home / Google Assistant
 =========================
+## Table of contents:
+- [What it can do](#what-it-can-do)
+- [How to setup](#how-to-setup)
+- [Full table with available actions](#full-table-with-available-actions)
+- [How to update to the latest version](#how-to-update-to-the-latest-version)
+- [Troubleshooting](#troubleshooting)
 
 ------------
 ## What it can do
@@ -9,11 +15,17 @@ Follow these steps to easily control your kodi using simple voice commands with 
 ### **Play a movie:**
 "Hey Google, kodi play [movie name]" --> will search for the given movie name and play it.
 
+### **Search and play a youtube video:**
+"Hey Google youtube [youtube title]" --> will search a youtube video, and play the first video.
+
 ### **Play the next unwatched episode:**
 "Hey Google, kodi play tv show [tv show name]" --> will search for the given tv show and play the next unwatched episode.
 
 ### **Play a specific episode:**
 "Hey Google, kodi play [tv show name] season 3 episode 1" --> will search for the given tv show and play season 3 episode 1.
+
+### **Play a random episode for a tv show:**
+"Hey Google, kodi shuffle [tv show name]" --> will search for the given tv show and play a random episode.
 
 ### **Pause / Resume kodi:**
 "Hey Google, pause kodi"
@@ -33,6 +45,72 @@ Follow these steps to easily control your kodi using simple voice commands with 
 ### **Turn on TV:**
 "Hey Google, switch to kodi" --> will turn on the TV and switch to Kodi's HDMI input
 
+### **Shutdown Kodi:**
+"Hey Google, kodi shutdown"
+
+### **Scan library:**
+"Hey Google, kodi scan library" --> Will start a full library scan
+
+### **Navigate Up:**
+"Hey Google, kodi navigate up 3" --> Will navigate up the requested amount
+
+### **Navigate Down:**
+"Hey Google, kodi navigate down 3" --> Will navigate down the requested amount
+
+### **Navigate Left:**
+"Hey Google, kodi navigate left 3" --> Will navigate left the requested amount
+
+### **Navigate Right:**
+"Hey Google, kodi navigate right 3" --> Will navigate right the requested amount
+
+### **Navigate Back:**
+"Hey Google, kodi go back 3" --> Will navigate back requested amount
+
+### **Navigate Select:**
+"Hey Google, kodi Select" --> Will select the hightlighted item
+
+### **Navigate Context Menu:**
+"Hey Google, kodi open context menu" --> Will open the context menu for the selected item
+
+### **Navigate Go Home:**
+"Hey Google, kodi go home" --> Will open the main menu page
+
+### **Whats Playing:**
+"Hey Google, kodi Whats Playing" --> Will show whats playing information
+
+### **Change Subtitles:**
+"Hey Google, kodi subtitles on/off/previous/next" --> Will change subtitle settings
+
+### **Change Subtitles direct select:**
+"Hey Google, kodi change subtitle to track 3" --> Will change subtitle track to a specific track
+
+### **Change Audiostream(Language):**
+"Hey Google, kodi audiostream previous/next" --> Will change audiostream settings
+
+### **Change Audiostream(Language) direct select:**
+"Hey Google, kodi change audiostream to track 3" --> Will change audiostream settings
+
+### **Seek forward x minutes:**
+"Hey Google, kodi go forward 30 minutes"
+
+### **Seek backwards x minutes:**
+"Hey Google, kodi go backward 30 minutes"
+
+### **Seek to x minutes:**
+"Hey Google, kodi jump to 30 minutes"
+
+### **Play a song:**
+"Hey Google, kodi play the song [song name]" --> will search for the given song name and play it.
+
+### **Play an album:**
+"Hey Google, kodi play the album [album name]" --> will search for the given album name and play it.
+
+### **Play an artist:**
+"Hey Google, kodi play songs by the artist [music artist name]" --> will search for the given music artist name and play it.
+
+### **Playlist Control:**
+"Hey Google, kodi playlist previous/next/list item number" --> This will go forward/backward or select an item on the playlist #.
+
 ------------
 ## How to setup
 
@@ -51,7 +129,7 @@ Disclaimer: Use on your own risk and choose complex username & password in the b
 1. Go to [Glitch.com](https://glitch.com) and sign in with your github user
 2. Create a new Glitch project and under *advance settings* choose *Import from GitHub*
 3. Enter this project *OmerTu/GoogleHomeKodi*
-4. Change Glitch project settings to private (under *advance settings*)
+4. Change Glitch project settings to private (under *share* > *Make private*)
 5. Edit the *.env* file in your Glitch project with the following settings:
 ```
 KODI_IP="YOUR_EXTERNAL_IP_ADDRESS"
@@ -63,6 +141,108 @@ AUTH_TOKEN="YOUR_CONNECTION_PASSWORD"
 *YOUR_CONNECTION_PASSWORD* can be anything you want.
 
 6. Check your Glitch server address by choosing 'Show Live' on the top left. A new tab with your server will open. Note your server address in the address bar.
+
+### **B.2) [OPTIONAL] Set up a local webserver to control your kodi**
+As an alternative to (B), it's possible to run a local node.js server in stead of running it on Glitch.com. The benifit of this is that you don't need to expose your kodi Api.
+Additional using the hodi-hosts.config.js file, you can set up and control multiple kodi installations.
+<details>
+  <summary>Click to expand (B.2) instructions</summary>
+
+1. After cloning the repo, create a copy of the `kodi-hosts.config.js.dist` file and rename it to `kodi-hosts.config.js`.
+2. Edit the file and make sure the kodiConfig and globalConfig sections match your environment.
+3. You should now be able to start the node server by running: `node server.js`.
+
+Here is a systemd init config. To run it as a daemon.
+On a debian dist save it as `/etc/systemd/system/kodiassistant.service`.
+
+Don't forget to run: sudo systemctl enable `sudo systemctl enable kodiassistant.service` to start the deamon on startup.
+
+```
+[Unit]
+Description=Node.js Google Home Kodi Interface
+
+[Service]
+ExecStart=/usr/bin/node /opt/GoogleHomeKodi/server.js
+# Required on some systems
+WorkingDirectory=/opt/GoogleHomeKodi
+Restart=always
+# Restart service after 10 seconds if node service crashes
+RestartSec=10
+# Output to syslog
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=nodejs-example
+
+[Install]
+WantedBy=multi-user.target
+```
+Note: you server should run Node.js 6.10 or above (8 preferred)
+
+</details>
+
+### **B.3) [OPTIONAL] controlling multiple kodi instances**
+Setting up the local node server, will allow you to utilize the kodi-hosts.config.js configuration.
+This configuration will allow you to address multiple kodi installations (e.g. "Hey Google, kodi play [movie name] in the bedroom")
+
+<details>
+  <summary>Click to expand (B.3) instructions</summary>
+
+For this you will need to extend the list. Like in this example:
+
+```
+exports.kodiConfig = [{
+    id: 'kodi', // For now leave the first set to kodi.
+    // YOUR_KODI_IP_ADDRESS
+    kodiIp: '192.168.178.10',
+    // YOUR_KODI_PORT
+    kodiPort: '8080',
+    // YOUR_KODI_USER_NAME
+    kodiUser: 'kodi',
+    // YOUR_KODI_PASSWORD
+    kodiPassword: 'myKodiPass'
+},
+    // You can use this to specify additonal kodi installation, that you'd like to control.
+    // For example alternate kodi destination 1:   
+{
+    id: 'bedroom',
+    // YOUR_KODI_IP_ADDRESS
+    kodiIp: '192.168.1.11',
+    // YOUR_KODI_PORT
+    kodiPort: '8080',
+    // YOUR_KODI_USER_NAME
+    kodiUser: 'kodi',
+    // YOUR_KODI_PASSWORD
+    kodiPassword: 'myKodiPass'
+},
+    // You can use this to specify additonal kodi installation, that you'd like to control.
+    // For example alternate kodi destination 2:   
+{
+    id: 'kitchen',
+    // YOUR_KODI_IP_ADDRESS
+    kodiIp: '192.168.1.12',
+    // YOUR_KODI_PORT
+    kodiPort: '8080',
+    // YOUR_KODI_USER_NAME
+    kodiUser: 'kodi',
+    // YOUR_KODI_PASSWORD
+    kodiPassword: 'myKodiPass'
+}
+];
+```
+
+The `id` will match your kodi instance with a spoken keyword.
+For every command / kodi destination you will need to add a new IFTTT applet.
+You'll only real change here, is the `body`. As up until now you have been using a body like: `{"token":"*YOUR_CONNECTION_PASSWORD*"}`.
+Now you will need to add the `kodiid` attribute to it, matching the id of your configuration.
+
+**Example scan library**
+If you normally would use a sentence like: `"Hey Google, kodi scan library" --> Will start a full library scan`.
+For running this command on your second kodi instance, you could copy the applet, and change it to:
+`"Hey Google, kodi scan library in the bedroom"`.
+
+In this new applet, you will need to make sure it will recognize this new sentence, and add the attribute `kodiid` to the body.
+For example: `{"token":"*YOUR_CONNECTION_PASSWORD*", "kodiid":"bedroom"}`
+</details>
 
 
 ### C) Set up IFTTT with your Google Home
@@ -83,7 +263,7 @@ AUTH_TOKEN="YOUR_CONNECTION_PASSWORD"
     For example, if your glitch server address is 'green-icecream.glitch.me', your should enter:
       >https://green-icecream.glitch.me/playmovie?q= {{TextField}}
     
-    8. Method: *Get*
+    8. Method: *POST*
     9. Content Type: *application/json*
     10. Body:
       >{"token":"*YOUR_CONNECTION_PASSWORD*"}
@@ -123,18 +303,57 @@ To **Mute** kodi, follow the same instructions as *pause* but use this URL:
   >YOUR_GLITCH_SERVER_ADDRESS/mute
   
 To **Set Volume** on kodi use "Say a phrase with a number" and the URL:
-  >YOUR_GLITCH_SERVER_ADDRESS/volume?q= {{NumberField}}
+  >YOUR_GLITCH_SERVER_ADDRESS/volume?q={{NumberField}}
+  
+  To **Seek forward** the play by x seconds use "Say a phrase with a number" and the URL:
+  >YOUR_GLITCH_SERVER_ADDRESS/seekforward?q={{NumberField}}
   
 For **PVR TV support - Set channel by name**, follow all the steps in **C**, except these changes: 
   * Choose a different phrase (e.g. "switch kodi to $ channel")
   * Use this URL:
-    >YOUR_GLITCH_SERVER_ADDRESS/playpvrchannelbyname?q= {{TextField}}
+    >YOUR_GLITCH_SERVER_ADDRESS/playpvrchannelbyname?q={{TextField}}
 
 For **PVR TV support - Set channel by number**, use "Say a phrase with a number" and the URL:
 
-  >YOUR_GLITCH_SERVER_ADDRESS/playpvrchannelbynumber?q= {{NumberField}}
-    
+  >YOUR_GLITCH_SERVER_ADDRESS/playpvrchannelbynumber?q={{NumberField}}
 
+
+## Full table with available actions
+| Type of phrase                                        | phrase                          | url                                                                       |
+|-------------------------------------------------------|---------------------------------|---------------------------------------------------------------------------|
+| Say a phrase with a text ingredient                   | Kodi play $                     | YOUR_GLITCH_SERVER_ADDRESS/playmovie?q={{TextField}}                      |
+| Say a phrase with a text ingredient                   | Kodi play an episode of $       | YOUR_GLITCH_SERVER_ADDRESS/playtvshow?q={{TextField}}                     |
+| Say a phrase with both a number and a text ingredient | Kodi play $ episode #           | YOUR_GLITCH_SERVER_ADDRESS/playepisode?q={{TextField}}&e= {{NumberField}} |
+| Say a simple phrase                                   | Kodi pause                      | YOUR_GLITCH_SERVER_ADDRESS/playpause                                      |
+| Say a simple phrase                                   | Kodi stop                       | YOUR_GLITCH_SERVER_ADDRESS/stop                                           |
+| Say a simple phrase                                   | Kodi mute                       | YOUR_GLITCH_SERVER_ADDRESS/mute                                           |
+| Say a phrase with a number                            | Kodi set volume #               | YOUR_GLITCH_SERVER_ADDRESS/volume?q={{NumberField}}                       |
+| Say a phrase with a text ingredient                   | switch kodi to $ channel        | YOUR_GLITCH_SERVER_ADDRESS/playpvrchannelbyname?q={{TextField}}           |
+| Say a phrase with a number                            | switch kodi to channel number # | YOUR_GLITCH_SERVER_ADDRESS/playpvrchannelbynumber?q={{NumberField}}       |
+| Say a simple phrase                                   | Kodi shutdown                   | YOUR_GLITCH_SERVER_ADDRESS/shutdown                                       |
+| Say a phrase with a text ingredient                   | Kodi shuffle $                  | YOUR_GLITCH_SERVER_ADDRESS/shuffleepisode?q={{TextField}}                 |
+| Say a phrase with a text ingredient                   | Kodi youtube play $             | YOUR_GLITCH_SERVER_ADDRESS/playyoutube?q={{TextField}}                   |
+| Say a simple phrase                                   | Kodi scan library               | YOUR_GLITCH_SERVER_ADDRESS/scanlibrary                                       |
+| Say a phrase with a number                            | Kodi Navigate up #              | YOUR_GLITCH_SERVER_ADDRESS/navup?q={{NumberField}}                 |
+| Say a phrase with a number                            | Kodi Navigate down #            | YOUR_GLITCH_SERVER_ADDRESS/navdown?q={{NumberField}}                 |
+| Say a phrase with a number                            | Kodi Navigate left #            | YOUR_GLITCH_SERVER_ADDRESS/navleft?q={{NumberField}}                 |
+| Say a phrase with a number                            | Kodi Navigate right #           | YOUR_GLITCH_SERVER_ADDRESS/navright?q={{NumberField}}                 |
+| Say a phrase with a number                            | Kodi Navigate back #            | YOUR_GLITCH_SERVER_ADDRESS/navback?q={{NumberField}}                 |
+| Say a simple phrase                                   | Kodi select                     | YOUR_GLITCH_SERVER_ADDRESS/navselect                                         |
+| Say a simple phrase                                   | Kodi show context menu          | YOUR_GLITCH_SERVER_ADDRESS/navcontextmenu                                   |
+| Say a simple phrase                                   | Kodi go home                    | YOUR_GLITCH_SERVER_ADDRESS/navhome                                           |
+| Say a simple phrase                                   | Kodi whats playing              | YOUR_GLITCH_SERVER_ADDRESS/displayinfo                                       |
+| Say a phrase with a text ingredient                   | Kodi subtitles $                | YOUR_GLITCH_SERVER_ADDRESS/setsubtitles?q={{TextField}}                   |
+| Say a phrase with a number                            | Kodi subtitles direct select #  | YOUR_GLITCH_SERVER_ADDRESS/setsubtitlesdirect?q={{NumberField}}                 |
+| Say a phrase with a text ingredient                   | Kodi audio stream $             | YOUR_GLITCH_SERVER_ADDRESS/setaudio?q={{TextField}}                   |
+| Say a phrase with a number                            | Kodi audio stream direct select #| YOUR_GLITCH_SERVER_ADDRESS/setaudiodirect?q={{NumberField}}  
+| Say a phrase with a number                            | Kodi seek forward x minutes #   | YOUR_GLITCH_SERVER_ADDRESS/seekforwardminutes?q={{NumberField}}                       |
+| Say a phrase with a number                            | Kodi seek backward x minutes #  | YOUR_GLITCH_SERVER_ADDRESS/seekbackwardminutes?q={{NumberField}}                       |
+| Say a phrase with a number                            | Kodi seek to x minutes #        | YOUR_GLITCH_SERVER_ADDRESS/seektominutes?q={{NumberField}}                       |
+| Say a phrase with a text ingredient                   | Kodi play the song $            | YOUR_GLITCH_SERVER_ADDRESS/playsong?q={{TextField}}                   |
+| Say a phrase with a text ingredient                   | Kodi play the album $           | YOUR_GLITCH_SERVER_ADDRESS/playalbum?q={{TextField}}                   |
+| Say a phrase with a text ingredient                   | Kodi play the artist $          | YOUR_GLITCH_SERVER_ADDRESS/playartist?q={{TextField}}                   |
+| Say a phrase with a text ingredient                   | Kodi playlist $                 | YOUR_GLITCH_SERVER_ADDRESS/playercontrol?q={{TextField}}                   |
 
 To **Turn on the TV and switch to Kodi's HDMI input** 
   * This requires Kodi 17 (Krypton) and above
@@ -173,7 +392,9 @@ If that doesn't work you probably have a problem with your router configuration.
 
 ------------
 ## Credits ##
-I used some code from these 3 projects:
+Thanks for everyone who contributed to this projects: [p0psicles](https://github.com/p0psicles), [Keljian](https://github.com/Keljian) and [Lunatixz](https://github.com/Lunatixz)
+
+I also used some code from these 3 projects:
 [MarvinSchenkel/HomeyKodi](https://github.com/MarvinSchenkel/HomeyKodi)
 [Jephuff/kodi-rpc](https://github.com/Jephuff/kodi-rpc)
 [joshjowen/script.json-cec](https://github.com/joshjowen/script.json-cec)
